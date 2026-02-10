@@ -101,16 +101,21 @@ public:
         }
     }
 };
-
+/////////////////////////////////////////////////////
 // Window Manager
+void MessageBoxProc(Window* self, uint16_t msg, uint32_t param);
 class WindowManager {
 private:
     std::vector<Window*> windows;
     M5Canvas* canvas;
     int focusedIndex = 0;
     
-    // --- NEW: POPUP SYSTEM ---
-    Window* activePopup = nullptr; // If not null, we are in "Popup Mode"
+    // --- MISSING LINE ADDED HERE ---
+    Window* activePopup = nullptr; 
+
+    // State for flexibility
+    bool isMaximized = false;
+    float splitRatio = 0.5; 
 
 public:
     WindowManager(M5Canvas* _canvas) {
@@ -122,7 +127,7 @@ public:
         recalculateLayout();
     }
 
-    // Function to launch a popup
+    // --- POPUP LOGIC ---
     void openPopup(Window* popup) {
         activePopup = popup;
         // Center the popup
@@ -135,25 +140,60 @@ public:
 
     void closePopup() {
         if (activePopup) {
-            delete activePopup; // Clean up memory
+            delete activePopup; // Free memory
             activePopup = nullptr;
         }
     }
 
+    // --- LAYOUT ENGINE ---
     void recalculateLayout() {
         if (windows.empty()) return;
-        int count = windows.size();
+
         int screenW = 240;
         int screenH = 135;
-        int widthPerWin = screenW / count;
 
-        for (int i = 0; i < count; i++) {
+        // MODE 1: MAXIMIZED
+        if (isMaximized) {
+            for (int i = 0; i < windows.size(); i++) {
+                if (i == focusedIndex) {
+                    windows[i]->x = 0; 
+                    windows[i]->y = 0;
+                    windows[i]->w = screenW; 
+                    windows[i]->h = screenH;
+                } else {
+                    windows[i]->w = 0; 
+                    windows[i]->h = 0; // Hide others
+                }
+            }
+            return;
+        }
+
+        // MODE 2: SPLIT VIEW (Adjustable)
+        if (windows.size() == 2) {
+            int splitPoint = (int)(screenW * splitRatio);
+            
+            // Left Window
+            windows[0]->x = 0;
+            windows[0]->y = 0;
+            windows[0]->w = splitPoint;
+            windows[0]->h = screenH;
+
+            // Right Window
+            windows[1]->x = splitPoint;
+            windows[1]->y = 0;
+            windows[1]->w = screenW - splitPoint;
+            windows[1]->h = screenH;
+            return;
+        }
+
+        // MODE 3: STANDARD TILING
+        int widthPerWin = screenW / windows.size();
+        for (int i = 0; i < windows.size(); i++) {
             windows[i]->x = i * widthPerWin;
             windows[i]->y = 0;
             windows[i]->w = widthPerWin;
             windows[i]->h = screenH;
         }
-        if (count > 0) windows[focusedIndex]->hasFocus = true;
     }
 
     void update() {
@@ -164,72 +204,90 @@ public:
             if (M5Cardputer.Keyboard.isPressed()) {
                 Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
 
-                // === POPUP MODE ===
+                // 1. Popup Handling (Blocks other input)
                 if (activePopup != nullptr) {
-                    // Only send keys to popup
-                     if (status.enter) {
-                        // Close popup on Enter
-                        closePopup();
-                        return; // Skip rest of loop
-                    }
-                    // Pass other keys if needed
+                    if (status.enter) closePopup();
                     return; 
                 }
 
-                // === NORMAL MODE ===
-                
-                // 1. Global Hotkey: 'M' opens a Popup
-                for (auto c : status.word) {
-                    if (c == 'm' || c == 'M') {
-                        // Create a simple "About" popup on the fly
-                        // (Ideally we define a proc, but we can reuse a generic one)
-                        // For this demo, we handle the creation in main setup mostly, 
-                        // but let's signal the main loop or just flag it here.
-                    }
-                }
-
-                // 2. Tab - Switch Focus
+                // 2. Global Hotkeys
                 if (status.tab) {
                     windows[focusedIndex]->hasFocus = false;
                     focusedIndex++;
                     if (focusedIndex >= windows.size()) focusedIndex = 0;
                     windows[focusedIndex]->hasFocus = true;
+                    // Force redraw if maximized to show new window
+                    if (isMaximized) recalculateLayout();
                 }
 
-                // 3. Pass Keys to App
-                if (status.del) windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, 8);
-                if (status.enter) windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, 13);
+                if (status.opt) {
+                    isMaximized = !isMaximized;
+                    recalculateLayout();
+                }
+
+                // 3. RESIZING LOGIC
+                bool layoutChanged = false;
                 
-                // ARROW KEYS (For Scrolling)
-                // The library maps arrows to specific chars sometimes, but checking 'word' is safer
-                bool arrowPressed = false;
-                
-                // M5Cardputer library maps Arrows to:
-                // UP: 180, DOWN: 181, LEFT: 182, RIGHT: 183 (approximate, changes by version)
-                // Let's iterate and pass EVERYTHING to the app
                 for (auto c : status.word) {
-                    windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, (uint32_t)c);
+                    // DEBUG: Print Key Code to Serial Monitor
+                    Serial.print("Key: "); Serial.println((int)c);
+
+                    // Resize Left: fn + ';' 
+                    if(status.fn){
+                    if ( c == ',' ) { 
+                        if (!isMaximized && windows.size() == 2) {
+                            splitRatio -= 0.05; 
+                            if (splitRatio < 0.2) splitRatio = 0.2;
+                            layoutChanged = true;
+                        }
+                    }
+
+                    // Resize Right: fn + '/'
+                    if (  c == '/' ) {
+                        if (!isMaximized && windows.size() == 2) {
+                            splitRatio += 0.05; 
+                            if (splitRatio > 0.8) splitRatio = 0.8;
+                            layoutChanged = true;
+                        }
+                    }
+                    }
+                    // Open Popup Demo
+                    if (c == 'm' || c == 'M') {
+                         Window* popup = new Window("Alert", MessageBoxProc, TFT_LIGHTGREY);
+                         openPopup(popup);
+                    }
+                }
+                
+                if (layoutChanged) recalculateLayout();
+
+                // 4. Pass Keys to App
+                if (!status.tab && !status.opt) {
+                    if (status.del) windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, 8);
+                    if (status.enter) windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, 13);
+                    
+                    for (auto c : status.word) {
+                        // Don't type the resize keys into notepad
+                        if (c != '<' && c != '>' && c != 180 && c != 182) {
+                            windows[focusedIndex]->wndProc(windows[focusedIndex], WM_KEYDOWN, (uint32_t)c);
+                        }
+                    }
                 }
             }
         }
 
-        // --- RENDER LOOP ---
+        // --- RENDER ---
         canvas->fillSprite(TFT_BLACK);
         
-        // 1. Draw Normal Windows
+        // Draw normal windows
         for (auto win : windows) {
-            win->wndProc(win, WM_PAINT, 0);
+            if (win->w > 0) win->wndProc(win, WM_PAINT, 0);
         }
 
-        // 2. Draw Popup (Overlay)
+        // Draw Popup (on top)
         if (activePopup != nullptr) {
-            // Dim background
-            // (Simulated by drawing a semi-transparent black rect, 
-            // but M5GFX doesn't do alpha well on sprites easily, so we just draw over)
-            
             // Draw Shadow
             canvas->fillRect(activePopup->x + 4, activePopup->y + 4, activePopup->w, activePopup->h, TFT_BLACK);
-            // Draw Popup Window
+            // Draw Popup
             activePopup->wndProc(activePopup, WM_PAINT, 0);
         }
 
