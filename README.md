@@ -115,7 +115,7 @@ Once MicroWin is running on the Cardputer, these are the global controls:
 | Key | Action |
 | --- | --- |
 | **TAB** | Switch focus between open windows (Cycle). |
-| **ESC** | **Maximize/Restore.** Toggles the active window between full-screen and split-screen. |
+| **OPT** | **Maximize/Restore.** Toggles the active window between full-screen and split-screen. |
 | **Fn + Left/Right** | **Resize Split.** (In split mode) Adjusts the width of the two windows. |
 | **M** | **Demo Popup.** Opens the "System Alert" modal (if implemented in app). |
 | **ENTER** | Confirm / New Line / Close Popup. |
