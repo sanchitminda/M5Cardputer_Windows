@@ -1,134 +1,166 @@
+# MicroWin OS for M5Cardputer
 
-# MicroWin for M5Cardputer
+**MicroWin** is a lightweight, object-oriented, overlapping Window Manager and GUI framework built specifically for the ESP32-S3 M5Stack Cardputer. It features a complete desktop metaphor, dynamic memory management, component-based UI elements, and hardware-agnostic input handling.
 
-**MicroWin** is a lightweight, tiling window manager and UI framework designed specifically for the **ESP32-S3** based **M5Stack Cardputer**. It mimics the architecture of early Windows (1.0/2.0) but is optimized for small screens (240x135) and limited input methods (keyboard-only navigation).
+## Key Features
 
-## 1. Architecture Overview
+* **Desktop Metaphor:** Launch apps via desktop icons.
+* **Overlapping Windows (Z-Ordering):** Windows can be dragged over each other. Clicking a background window brings it to the top.
+* **Dynamic RAM Management:** Uses the Factory Pattern to build apps only when launched, and a Garbage Collector to `delete` them and free heap memory when closed.
+* **Window Controls:** Fully functional Title Bar with Dragging, Minimizing (hide), Maximizing (fullscreen), and Closing (destroy).
+* **Responsive Layouts:** Support for both Fixed (pixel-perfect) and Relative (percentage-based) positioning and sizing. Elements automatically scale when a window is maximized or resized.
+* **Keyboard & Focus Routing:** The OS intelligently routes M5Cardputer physical keyboard strokes only to the currently focused window and its focused `TextInput` elements.
+* **Hardware Agnostic:** The library does not care where your input comes from (USB Host Mouse, I2C Joystick, Touchscreen). You simply feed it `(X, Y, Click)` coordinates in your main loop.
 
-The library operates on a **Message-Driven Architecture**. Just like standard Windows programming, applications do not run in their own loops. Instead, they are passive "Window Procedures" that wait for the system to send them a message (like `WM_PAINT` or `WM_KEYDOWN`).
+---
 
-### Core Components
-* **WindowManager (`WM_Core`):** The kernel. It manages the list of open windows, calculates their layout (tiling), and dispatches input events from the hardware to the active window.
-* **Window (`Window`):** An object representing a screen region. It holds state (size, position, title) and a pointer to its logic function.
-* **Message Loop:** The `update()` method in the Manager, called inside the Arduino `loop()`. It keeps the UI alive.
+## Architecture Overview
 
-## 2. API Reference
+MicroWin is built on three main pillars:
 
-### Class: `Window`
-Represents a single application or dialog box.
+1. **`WindowManager` (The OS Kernel):** Manages the Desktop, the array of active `Window` objects, Z-ordering, Garbage Collection, and event dispatching.
+2. **`Window` (The App Container):** Holds the state of an application, handles title bar interactions, and acts as a container for `UIElement` objects.
+3. **`UIElement` (The Components):** The base class for everything inside a window (`Button`, `Label`, `TextInput`, etc.). Elements only know their position relative to their parent window.
 
-**Constructor:**
+---
+
+## Built-in UI Components
+
+All components inherit from `UIElement(x, y, w, h, isRelative)`.
+
+* If `isRelative` is `false`, coordinates are exact pixels.
+* If `isRelative` is `true`, coordinates are percentages (0-100) of the parent window's size.
+
+### 1. `Label`
+
+Displays static or dynamic text.
+
 ```cpp
-Window(String title, WNDPROC proc, uint16_t bgColor)
+Label(int x, int y, String text, uint16_t color = TFT_WHITE, bool isRel = false)
 
 ```
 
-* `title`: Text displayed in the top bar.
-* `proc`: The function name that handles this window's logic.
-* `bgColor`: The 16-bit color (e.g., `TFT_NAVY`) for the window background.
+### 2. `Button`
 
-**Key Properties:**
-
-* `x, y, w, h` (int): Calculated automatically by the WindowManager. Read-only for apps.
-* `stateText` (String): A generic string buffer for simple apps (like Notepad) to store content.
-* `scrollY` (int): The vertical scroll offset in pixels.
-* `contentHeight` (int): The total height of the content (used to calculate scrollbar size).
-
-**Helper Methods:**
-
-* `drawStandardUI(M5Canvas* canvas)`: Draws the standard Title Bar, Borders, and Background. Call this first in your `WM_PAINT` handler.
-
-### Class: `WindowManager`
-
-The engine that runs the system.
-
-**Methods:**
-
-* `addWindow(Window* w)`: Registers a new app and recalculates the screen split.
-* `openPopup(Window* popup)`: Opens a window in "Modal" mode. It floats in the center, dims the background, and captures all keyboard input until closed.
-* `closePopup()`: Destroys the active popup and returns focus to the main windows.
-* `update()`: **Must be called in `void loop()**`. Handles input polling and screen refreshing.
-
-## 3. The Window Procedure (`WNDPROC`)
-
-Every app must be defined as a function with this exact signature:
+Clickable component with hover and press states. Uses `std::function` for event binding.
 
 ```cpp
-void AppNameProc(Window* self, uint16_t msg, uint32_t param);
+Button(int x, int y, int w, int h, String text, bool isRel = false)
 
 ```
 
-### Message Types
+* **Events:** `btn->onClick = [](){ /* logic */ };`
 
-| Message Constant | Description | `param` Usage |
-| --- | --- | --- |
-| `WM_CREATE` | Sent when window is first added. | Unused (0). |
-| `WM_PAINT` | Sent every frame. **Draw your UI here.** | Unused (0). |
-| `WM_KEYDOWN` | Sent when a key is pressed and this window has focus. | Contains the ASCII char or Key Code. |
-| `WM_TIMER` | Sent periodically (optional implementation). | Current `millis()` time. |
-| `WM_CLOSE` | Sent when the window is being destroyed. | Unused (0). |
+### 3. `TextInput`
 
-## 4. How to Write an Application
-
-Here is a boilerplate template for creating a new "App" in MicroWin.
-
-### Step 1: Define the Logic
+A focusable text box that captures physical keyboard inputs and displays a blinking cursor.
 
 ```cpp
-void MyAppProc(Window* self, uint16_t msg, uint32_t param) {
-    // 1. Handle Input
-    if (msg == WM_KEYDOWN) {
-        char key = (char)param;
-        if (key == 'x') {
-            // Do something when 'x' is pressed
-        }
-    }
+TextInput(int x, int y, int w, int h, bool isRel = false)
 
-    // 2. Handle Drawing
-    if (msg == WM_PAINT) {
-        // Draw the standard window frame
-        self->drawStandardUI(globalCanvas);
-        
-        // Draw your custom content relative to self->x and self->y
-        globalCanvas->setTextColor(TFT_WHITE);
-        globalCanvas->setCursor(self->x + 5, self->y + 20);
-        globalCanvas->print("My Custom App");
-    }
+```
+
+### 4. `PaintCanvas`
+
+A specialized element that records mouse drag movements into a highly memory-efficient `std::vector` of vector lines rather than using a heavy bitmap buffer.
+
+```cpp
+PaintCanvas(int x, int y, int w, int h, bool isRel = false)
+
+```
+
+---
+
+## How to Create a New Application
+
+MicroWin uses the **Factory Pattern** to save RAM. Instead of creating windows globally, you create a lambda function (the "blueprint") that returns a pointer to a newly built `Window`. The `DesktopIcon` executes this blueprint only when the user clicks the icon.
+
+### Step 1: Write the App Factory
+
+Define the window, add elements to it, and bind your logic using lambda functions.
+
+```cpp
+auto createMyApp = []() -> Window* {
+  // 1. Create the Window (x, y, w, h, title, background_color)
+  Window* win = new Window(20, 20, 160, 90, "My App", TFT_DARKCYAN);
+
+  // 2. Add UI Elements
+  Label* myLabel = new Label(10, 15, "Status: Ready", TFT_WHITE, false);
+  win->addElement(myLabel);
+
+  // 3. Create a Button and Bind an Event
+  Button* myBtn = new Button(10, 40, 80, 25, "Click Me!", false);
+  
+  // Notice we capture [myLabel] so the button can modify it
+  myBtn->onClick = [myLabel]() {
+    myLabel->text = "Status: Clicked!";
+  };
+  win->addElement(myBtn);
+
+  // 4. (Optional) Hook into the Window's per-frame update loop
+  win->onUpdate = [](Window* self) {
+    // Code here runs every frame while the window is open
+    // Great for updating clocks, polling sensors, or system stats
+  };
+
+  return win; // Return the fully built window
+};
+
+```
+
+### Step 2: Register the App on the Desktop
+
+Pass your factory function into a new `DesktopIcon` and add it to the Window Manager.
+
+```cpp
+// DesktopIcon(x, y, label, icon_color, factory_function)
+wm.icons.push_back(new DesktopIcon(10, 10, "My App", TFT_PURPLE, createMyApp));
+
+```
+
+---
+
+## Hardware Integration (The `.ino` File)
+
+Because `MicroWin` is hardware-agnostic, you must pass the hardware state into `wm.update()` every frame. Here is the minimal boilerplate:
+
+```cpp
+#include <Arduino.h>
+#include <M5Cardputer.h>
+#include "MicroWin.h" // Your custom library
+
+// 1. Create the Display Canvas & OS Instance
+LGFX_Sprite canvas(&M5Cardputer.Display);
+WindowManager wm;
+
+// 2. Define your Input Variables (Update these via USB Host, Joystick, etc.)
+int mouse_x = 120;
+int mouse_y = 67;
+bool mouse_click = false;
+
+void setup() {
+  auto cfg = M5.config();
+  M5Cardputer.begin(cfg, true);
+  M5Cardputer.Display.setRotation(1);
+  canvas.createSprite(240, 135);
+  
+  // Register Apps...
+  // wm.icons.push_back(new DesktopIcon(..., createMyApp));
+}
+
+void loop() {
+  // Update your mouse_x, mouse_y, and mouse_click variables here
+  
+  // Feed the hardware state into the OS
+  wm.update(mouse_x, mouse_y, mouse_click, &canvas);
 }
 
 ```
 
-### Step 2: Register the App
+---
 
-In your Arduino `setup()` function:
+## Global Keyboard Shortcuts
 
-```cpp
-// Create the window and add it to the manager
-wm->addWindow(new Window("My App", MyAppProc, TFT_DARKGREEN));
-
-```
-
-## 5. User Guide (Keyboard Shortcuts)
-
-Once MicroWin is running on the Cardputer, these are the global controls:
-
-| Key | Action |
-| --- | --- |
-| **TAB** | Switch focus between open windows (Cycle). |
-| **OPT** | **Maximize/Restore.** Toggles the active window between full-screen and split-screen. |
-| **Fn + Left/Right** | **Resize Split.** (In split mode) Adjusts the width of the two windows. |
-| **M** | **Demo Popup.** Opens the "System Alert" modal (if implemented in app). |
-| **ENTER** | Confirm / New Line / Close Popup. |
-
-## 6. Known Limitations
-
-* **Memory:** Each `Window` object consumes heap memory. On ESP32-S3, you can safely open 5-10 simple windows, but heavy text buffers may cause crashes.
-* **Flicker:** The system redraws the entire screen every loop. for complex graphics, this may cause flickering.
-* *Fix:* Use `canvas->pushSprite()` only once at the very end of the `WindowManager::update()` loop (already implemented in v1.0).
-
-
-* **Input:** The current input handler maps raw USB HID keys to ASCII. Some special keys (PageUp, Home, End) may need custom mapping in `WM_KEYDOWN`.
-
-```
-
-```
+* **Tab:** Cycles focus to the next open window (brings the bottom window to the top).
+* **Backspace:** Deletes characters in focused `TextInput` components.
+* **Alphanumeric Keys:** Routed automatically to the focused window's `TextInput` element.
