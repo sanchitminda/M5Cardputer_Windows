@@ -4,6 +4,8 @@
 
 **MicroWin** is a lightweight, object-oriented, overlapping Window Manager and GUI framework built specifically for the ESP32-S3 M5Stack Cardputer. It features a complete desktop metaphor, dynamic memory management, component-based UI elements, and hardware-agnostic input handling.
 
+tutorial: https://youtu.be/wLGi9sBn_3s?si=Oxt8T42CA4U5DvtW
+
 ## Key Features
 
 * **Desktop Metaphor:** Launch apps via desktop icons.
