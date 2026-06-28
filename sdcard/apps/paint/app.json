@@ -1,0 +1,7 @@
+{
+  "name": "Paint",
+  "entry": "main.lua",
+  "iconX": 80,
+  "iconY": 20,
+  "associations": []
+}

@@ -2,6 +2,8 @@
 #include <M5Cardputer.h>
 #include <SPI.h>
 #include "MicroWin.h"
+#include "LuaRuntime.h"
+#include "AppLoader.h"
 
 ///////////////////////////////////////////////////
 
@@ -65,20 +67,8 @@ void drawSettingsIcon(LGFX_Sprite* canvas, int x, int y) {
   canvas->fillRoundRect(x+13, y+14, 5, 5, 1, c2);
 }
 
-// 2. DEBUGGER ICON (Code Brackets)
-void drawDebugIcon(LGFX_Sprite* canvas, int x, int y) {
-  // Background shield
-  canvas->fillRoundRect(x+2, y+2, 20, 20, 4, TFT_YELLOW);
-  
-  // Brackets: '< >'
-  uint16_t txtColor = TFT_BLACK;
-  canvas->setTextSize(1);
-  canvas->setTextColor(txtColor);
-  canvas->setTextDatum(middle_center);
-  // Using drawString to mathematically center the '<>' symbol
-  canvas->drawString("<>", x+12, y+12);
-  canvas->setTextDatum(top_left); // Reset datum!
-}
+// drawPaintIcon and drawDebugIcon removed — Paint and Debugger are now Lua apps.
+// Their desktop icons (with the generic Lua "L" badge) are created by AppLoader.
 
 // 3. NAVIDROME ICON (Musical Note)
 void drawNavidromeIcon(LGFX_Sprite* canvas, int x, int y) {
@@ -114,26 +104,7 @@ void drawFolderIcon(LGFX_Sprite* canvas, int x, int y) {
   canvas->drawFastHLine(x + 3, y + 10, 18, canvas->color565(255, 230, 100));
 }
 
-// 6. PAINT APP ICON (Artist's Palette & Brush)
-void drawPaintIcon(LGFX_Sprite* canvas, int x, int y) {
-  uint16_t wood = canvas->color565(205, 133, 63); // Warm wood color
-  
-  // 1. The wooden palette body
-  canvas->fillCircle(x + 12, y + 14, 9, wood);
-  
-  // 2. The thumb hole (Black to simulate looking through it)
-  canvas->fillCircle(x + 7, y + 15, 3, TFT_BLACK); 
-  
-  // 3. Colorful paint blobs!
-  canvas->fillCircle(x + 12, y + 9, 2, TFT_RED);
-  canvas->fillCircle(x + 17, y + 13, 2, TFT_GREEN);
-  canvas->fillCircle(x + 15, y + 18, 2, TFT_BLUE);
-  
-  // 4. A paintbrush crossing the palette
-  canvas->drawLine(x + 4, y + 20, x + 10, y + 14, TFT_LIGHTGREY);
-  canvas->drawLine(x + 5, y + 21, x + 11, y + 15, TFT_LIGHTGREY); // Double thick handle
-  canvas->fillCircle(x + 11, y + 14, 2, TFT_WHITE); // White brush tip
-}
+// 6. PAINT APP ICON removed — Paint is now a Lua app
 ///////////////////////////////////////////////////
 
 
@@ -494,89 +465,7 @@ public:
     window->addElement(lblStatus);
   }
 };
-// ==========================================
-// 5. THE EVENT TESTER APP
-// ==========================================
-// ==========================================
-// 5. HW & UI DEBUGGER APP
-// ==========================================
-// ==========================================
-// 5. HW & UI DEBUGGER APP
-// ==========================================
-class EventTesterApp : public MicroApp {
-public:
-  Label* lblKey;
-  Label* lblAction;
-
-  void onLaunch(String args) override {
-    appName = "HW Debugger";
-    
-    // Stretch the window to fit everything neatly on the Cardputer screen
-    window = new Window(10, 10, 220, 115, "UI & Hardware Showcase", TFT_PURPLE);
-
-    // --- 1. LABEL EXAMPLES (Top Row) ---
-    window->addElement(new Label(5, 5, "UI Components:", TFT_YELLOW, false));
-    lblKey = new Label(130, 5, "Last Key: None", TFT_CYAN, false);
-    window->addElement(lblKey);
-
-    // --- 2. TEXT INPUT EXAMPLE (Second Row) ---
-    window->addElement(new Label(5, 25, "Input:", TFT_WHITE, false));
-    TextInput* txtTest = new TextInput(50, 22, 160, 16, false);
-    txtTest->text = "Test typing here...";
-    txtTest->cursorPos = txtTest->text.length(); 
-    window->addElement(txtTest);
-
-    // --- 3. BUTTON & POPUP EXAMPLES (Third Row) ---
-    lblAction = new Label(70, 45, "<- State", TFT_LIGHTGREY, false);
-    
-    Button* btnTest = new Button(5, 42, 60, 18, "Click Me", false);
-    btnTest->onClick = [this]() {
-        this->lblAction->text = "Clicked!";
-        this->lblAction->color = TFT_GREEN; 
-    };
-    window->addElement(btnTest);
-    window->addElement(lblAction);
-
-    // THE NEW POPUP TRIGGER!
-    Button* btnPopup = new Button(150, 42, 60, 18, "Popup", false);
-    btnPopup->onClick = []() {
-        // Summon a system-level Information popup
-        wm.showPopup("UI System is stable!", POPUP_INFO);
-    };
-    window->addElement(btnPopup);
-
-    // --- 4. HARDWARE AUDIO ENGINE (Bottom Rows) ---
-    window->addElement(new Label(5, 65, "Audio Engine Test:", TFT_YELLOW, false));
-    
-    TextInput* txtAudioPath = new TextInput(5, 82, 140, 16, false);
-    txtAudioPath->text = "/navakar.mp3"; 
-    txtAudioPath->cursorPos = txtAudioPath->text.length();
-    window->addElement(txtAudioPath);
-
-    Button* btnPlay = new Button(150, 82, 60, 18, "Play", false);
-    btnPlay->onClick = [txtAudioPath]() { 
-      if (txtAudioPath->text.length() > 0) {
-        wm.audio.setVolume(200);
-        wm.audio.play(txtAudioPath->text);
-      }
-    };
-    window->addElement(btnPlay);
-
-    // --- REAL-TIME EVENT HOOK ---
-    window->onUpdate = [this](Window* self) {
-      if (!wm.keyboard.typedChars.empty()) {
-        char c = wm.keyboard.typedChars.back();
-        if (c == KEY_UP) this->lblKey->text = "Key: UP";
-        else if (c == KEY_DOWN) this->lblKey->text = "Key: DOWN";
-        else if (c == KEY_LEFT) this->lblKey->text = "Key: LEFT";
-        else if (c == KEY_RIGHT) this->lblKey->text = "Key: RIGHT";
-        else if (c == KEY_ESC) this->lblKey->text = "Key: ESC";
-        else if (c == KEY_TAB) this->lblKey->text = "Key: TAB";
-        else this->lblKey->text = "Key: " + String(c);
-      }
-    };
-  }
-};
+// EventTesterApp removed — now a Lua app at /apps/debugger/main.lua
 // ==========================================
 // 3. THE MUSIC PLAYER APP
 // ==========================================
@@ -644,49 +533,7 @@ public:
     wm.audio.stop(); // Safe shutdown
   }
 };
-// ==========================================
-// APPLICATION: PAINT
-// ==========================================
-class PaintApp : public MicroApp {
-public:
-  uint16_t activeColor = TFT_BLACK; // Shared state for the brush color
-  PaintCanvas* pCanvas;
-
-  void onLaunch(String args) override {
-    appName = "Paint";
-    
-    // Create a window that fits nicely on the 240x135 screen
-    window = new Window(10, 10, 220, 115, "Mini Paint", canvas.color565(230, 230, 230));
-
-    // 1. THE TOOLBAR (Top Row)
-    // We use standard buttons for our color palette
-    Button* btnRed = new Button(5, 2, 20, 18, "R", false);
-    btnRed->onClick = [this]() { activeColor = TFT_RED; };
-    window->addElement(btnRed);
-
-    Button* btnGreen = new Button(28, 2, 20, 18, "G", false);
-    btnGreen->onClick = [this]() { activeColor = TFT_GREEN; };
-    window->addElement(btnGreen);
-
-    Button* btnBlue = new Button(51, 2, 20, 18, "B", false);
-    btnBlue->onClick = [this]() { activeColor = TFT_BLUE; };
-    window->addElement(btnBlue);
-
-    Button* btnBlack = new Button(74, 2, 20, 18, "K", false);
-    btnBlack->onClick = [this]() { activeColor = TFT_BLACK; };
-    window->addElement(btnBlack);
-
-    // Clear Button
-    Button* btnClear = new Button(165, 2, 50, 18, "Clear", false);
-    btnClear->onClick = [this]() { pCanvas->clear(); };
-    window->addElement(btnClear);
-
-    // 2. THE CANVAS (Bottom Area)
-    // We pass the memory address (&activeColor) so the canvas always knows what color is selected!
-    pCanvas = new PaintCanvas(5, 23, 210, 70, &activeColor);
-    window->addElement(pCanvas);
-  }
-};
+// PaintApp removed — now a Lua app at /apps/paint/main.lua
 // ==========================================
 // 1. THE FILE EXPLORER APP
 // ==========================================
@@ -889,7 +736,6 @@ void setup() {
 
   // Boot the OS Hardware Abstraction Layer
   wm.begin();
-  wm.begin();
 
   // --- 1. REGISTER APPS TO THE OS ---
   wm.registerApp("Notepad", []() { return new NotepadApp(); });
@@ -901,51 +747,28 @@ void setup() {
   wm.associateExt(".mp3", "MusicPlayer");
   wm.associateExt(".wav", "MusicPlayer");
   wm.associateExt(".jpg", "ImageViewer");
-  // --- 3. BUILD THE DESKTOP ---
-  // ... (Your wm.icons.push_back code here) ...
-  // --- BUILD THE DESKTOP ---
-  
+  // --- 3. BUILD THE DESKTOP (native apps) ---
   wm.icons.push_back(new DesktopIcon(20, 80, "Notes", drawNotesIcon, []() {
-    wm.launchApp(new NotepadApp(), ""); // Pass empty string for a blank note
-    return nullptr; 
+    wm.launchApp(new NotepadApp(), "");
+    return nullptr;
   }));
-  // wm.icons.push_back(new DesktopIcon(20, 140, "Notes", drawNotesIcon, []() {
-  //   wm.launchApp(new NotepadApp(), ""); // Pass empty string for a blank note
-  //   return nullptr; 
-  // }));
-  // --- FILE EXPLORER ICON ---
   wm.icons.push_back(new DesktopIcon(20, 20, "Files", drawFolderIcon, []() {
     wm.launchApp(new FileExplorerApp(), "/");
-    return nullptr; 
+    return nullptr;
   }));
-
-  // --- PAINT APP ICON ---
-  // Assuming it sits right next to the Files app!
-  wm.icons.push_back(new DesktopIcon(80, 20, "Paint", drawPaintIcon, []() {
-    wm.launchApp(new PaintApp(), ""); // Launch your paint app here!
-    return nullptr; 
+  wm.icons.push_back(new DesktopIcon(140, 20, "Settings", drawSettingsIcon, []() {
+    wm.launchApp(new SettingsApp(), ""); return nullptr;
   }));
-
-  wm.icons.push_back(new DesktopIcon(80, 80, "Debugger", drawDebugIcon, []() {
-    // EventTesterApp* app = new EventTesterApp();
-    wm.launchApp(new EventTesterApp(), ""); return nullptr; 
-  }));
-  // Pass the drawing function (e.g., drawSettingsIcon) instead of a color
-  wm.icons.push_back(new DesktopIcon(140,20 , "Settings", drawSettingsIcon, []() {
-    // SettingsApp* app = new SettingsApp();
-    wm.launchApp(new SettingsApp(), ""); return nullptr; 
-    // return app->window;
-  }));
-
   wm.icons.push_back(new DesktopIcon(140, 80, "SysMon", drawMonitorIcon, []() {
-    // EventTesterApp* app = new EventTesterApp();
-    wm.launchApp(new SystemMonitorApp(), ""); return nullptr; 
+    wm.launchApp(new SystemMonitorApp(), ""); return nullptr;
   }));
+
+  // --- 4. DISCOVER & REGISTER LUA APPS FROM SD ---
+  // Scans /apps/ directory, reads app.json manifests, registers
+  // factories and pushes desktop icons automatically.
+  AppLoader::scan(wm);
+
   wm.loadWallpaper("/bg.jpg");
-  // wm.icons.push_back(new DesktopIcon(140, 20, "Music", drawNavidromeIcon, []() {
-  //   // (We will build this app next!)
-  //   return nullptr; 
-  // }));
 }
 
 // ==========================================

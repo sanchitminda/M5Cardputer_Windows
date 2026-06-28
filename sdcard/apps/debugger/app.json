@@ -1,0 +1,7 @@
+{
+  "name": "Debugger",
+  "entry": "main.lua",
+  "iconX": 80,
+  "iconY": 80,
+  "associations": []
+}
